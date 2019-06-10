@@ -40,13 +40,14 @@ clean_model_data <- function(data, datargs, estimator = "") {
   }
 
   if ("fixed_effects" %in% names(mfargs)) {
+    stopifnot(is.formula(mfargs[["fixed_effects"]]))
     name <- sprintf(".__fixed_effects%%%d__", sample.int(.Machine$integer.max, 1))
     m_formula_env[[name]] <- sapply(
-      eval_tidy(quo((stats::model.frame.default)(
+      stats::model.frame.default(
         mfargs[["fixed_effects"]],
         data = data,
         na.action = NULL
-      ))),
+      ),
       FUN = as.factor
     )
     mfargs[["fixed_effects"]] <- sym(name)
