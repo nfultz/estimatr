@@ -11,14 +11,13 @@ Eigen::MatrixXd eigenAve(const Eigen::ArrayXd& x,
   int n = fe.size();
   std::unordered_map<Rcpp::String, int> groups;
 
-  int k_groups = 0;
   for (int i=0; i<n; i++) {
     if (groups.find(fe(i)) == groups.end()) {
-        groups[fe(i)] = k_groups++;
+        groups[fe(i)] = groups.size();
     }
   }
 
-  Eigen::ArrayX2d group_sums(k_groups, 2);
+  Eigen::ArrayX2d group_sums(groups.size(), 2);
   group_sums.setZero();
   for (int i=0; i<n; i++) {
     int j = groups[fe(i)];
