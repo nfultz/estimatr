@@ -9,9 +9,7 @@ Eigen::MatrixXd eigenAve(const Eigen::ArrayXd& x,
                          const Eigen::VectorXd& weights) {
 
   int n = fe.size();
-  std::unordered_map<std::string, Eigen::Array2d> sums;
   std::unordered_map<std::string, int> groups;
-  Eigen::ArrayXd avevec(n);
 
   int k_groups = 0;
   for (int i=0; i<n; i++) {
@@ -30,8 +28,8 @@ Eigen::MatrixXd eigenAve(const Eigen::ArrayXd& x,
     group_sums(j,1) = group_sums(j,1) + weights(i);
   }
   group_sums.col(0) = group_sums.col(0) / group_sums.col(1);
-  Rcout << group_sums << std::endl;
 
+  Eigen::ArrayXd avevec(n);
   for (int i=0; i<n; i++) {
     std::string fei = Rcpp::as<std::string>(fe(i));
     int j = groups[fei];
@@ -41,26 +39,6 @@ Eigen::MatrixXd eigenAve(const Eigen::ArrayXd& x,
   }
   return avevec;
 
-  for (int i=0; i<n; i++) {
-    std::string fei = Rcpp::as<std::string>(fe(i));
-    Eigen::Array2d dat;
-    dat(0) = weights(i) * x(i);
-    dat(1) = weights(i);
-    if (sums.find(fei) != sums.end()) {
-      sums[fei] += dat;
-    } else {
-      sums[fei] = dat;
-    }
-  }
-
-  for (int i=0; i<n; i++) {
-    std::string fei = Rcpp::as<std::string>(fe(i));
-
-    // Rcout << sums[fei](0) << std::endl;
-    avevec(i) = x(i) - sums[fei](0)/sums[fei](1);
-  }
-
-  return avevec;
 }
 
 // [[Rcpp::export]]
