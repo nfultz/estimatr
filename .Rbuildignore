@@ -23,4 +23,5 @@ update_repo.R
 ^tests/testthat/test-texreg\.R$
 ^tests/testthat/test-gtsummary\.R$
 ^cran-comments\.md$
+^estimatr.Rcheck/
 

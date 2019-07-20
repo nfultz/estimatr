@@ -14,6 +14,10 @@ docs/
 tests/testthat/*.pdf
 .DS_Store
 
+#
+*.Rcheck/
+*.tar.gz
+
 # compiled files
 src/*.o
 src/*.so
