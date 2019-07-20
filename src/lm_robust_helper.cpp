@@ -9,14 +9,16 @@ Eigen::MatrixXd eigenAve(const Eigen::ArrayXd& x,
                          const Eigen::VectorXd& weights) {
 
   int n = fe.size();
-  std::unordered_map<Rcpp::String, int> groups;
 
+  // find unique elements
+  std::unordered_map<Rcpp::String, int> groups;
   for (int i=0; i<n; i++) {
     if (groups.find(fe(i)) == groups.end()) {
         groups[fe(i)] = groups.size();
     }
   }
 
+  // calculate group sums
   Eigen::ArrayX2d group_sums(groups.size(), 2);
   group_sums.setZero();
   for (int i=0; i<n; i++) {
@@ -26,13 +28,14 @@ Eigen::MatrixXd eigenAve(const Eigen::ArrayXd& x,
   }
   group_sums.col(0) = group_sums.col(0) / group_sums.col(1);
 
+  // demean input
   Eigen::ArrayXd avevec(n);
   for (int i=0; i<n; i++) {
     int j = groups[fe(i)];
     avevec(i) = x(i) - group_sums(j,0);
   }
-  return avevec;
 
+  return avevec;
 }
 
 // [[Rcpp::export]]
