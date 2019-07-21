@@ -4,7 +4,7 @@
 #include <RcppEigen.h>
 using namespace Rcpp;
 
-Eigen::ArrayXd eigenAve(const Eigen::ArrayXd& x,
+Eigen::ArrayXd eigenAve(Eigen::ArrayXd& x,
                          const Rcpp::StringVector& fe,
                          const Eigen::VectorXd& weights) {
 
@@ -28,15 +28,45 @@ Eigen::ArrayXd eigenAve(const Eigen::ArrayXd& x,
   }
   group_sums.col(0) = group_sums.col(0) / group_sums.col(1);
 
-  // demean input
-  Eigen::ArrayXd avevec(n);
+  // demean input *in-place*
   for (int i=0; i<n; i++) {
     int j = groups[fe(i)];
-    avevec(i) = x(i) - group_sums(j,0);
+    x(i) = x(i) - group_sums(j,0);
   }
 
-  return avevec;
+  return x;
 }
+
+Eigen::MatrixXd demeanMat(const Eigen::MatrixXd& what,
+               const Rcpp::StringMatrix& fes,
+               const Eigen::VectorXd& weights,
+               const double& eps) {
+
+  int n = what.rows();
+  int p = what.cols();
+  Eigen::MatrixXd out(n,p);
+  Eigen::ArrayXd oldcol(n);
+  Eigen::ArrayXd newcol(n);
+
+  for (int i=0; i<p; i++) {
+    newcol.col(0) = what.col(i);
+
+    do {
+      oldcol.col(0) = newcol;
+      for (Eigen::Index j = 0; j < fes.cols(); ++j) {
+        eigenAve(newcol, fes.column(j), weights);
+      }
+      // Rcout << "oldcol" << std::endl << oldcol << std::endl;
+      // Rcout << "newcol" << std::endl << newcol << std::endl;
+      // Rcout << std::sqrt((oldcol - newcol).pow(2).sum()) << std::endl;
+    } while (std::sqrt((oldcol - newcol).pow(2).sum()) >= eps);
+
+    out.col(i) = newcol;
+  }
+
+  return out;
+}
+
 
 // [[Rcpp::export]]
 List demeanMat(const Eigen::MatrixXd& Y,
@@ -50,62 +80,20 @@ List demeanMat(const Eigen::MatrixXd& Y,
   int start_col = 0 + has_int;
   // Rcout << start_col << std::endl;
 
-  int n = X.rows();
-  int p = X.cols();
-  int ny = Y.cols();
+  Rcpp::List ret = Rcpp::List::create();
 
-  Eigen::MatrixXd Z;
-  Eigen::MatrixXd newZ;
-  int nz = 0;
+  ret["outcome"] = demeanMat(Y, fes, weights, eps);
+
+  ret["design_matrix"] = demeanMat(X.block(0, start_col, X.rows(), X.cols() - start_col), // if there's an intercept, skip it.
+          fes, weights, eps);
+
+
   if (Zmat.isNotNull()) {
-    Z = Rcpp::as<Eigen::Map<Eigen::MatrixXd> >(Zmat);
-    nz = Z.cols() - start_col;
-    newZ.resize(n, nz);
-  }
-  // Drop integer
-  Eigen::MatrixXd newX(n, p - start_col);
-  Eigen::MatrixXd newY(n, ny);
-
-  Eigen::MatrixXd fixed_effects(n, fes.cols());
-
-  // Iterate over columns of X, starting at 1 if there is an intercept
-  // and then do Y
-  Eigen::ArrayXd oldcol(n);
-  Eigen::ArrayXd newcol(n);
-  for (Eigen::Index i = start_col; i <= (p + ny + nz - start_col); ++i) {
-
-    if (i < p) {
-      newcol.col(0) = X.col(i);
-    } else if (i < p + ny){
-      newcol.col(0) = Y.col(i-p);
-    } else {
-      newcol.col(0) = Z.col(i-p-ny + start_col);
-    }
-
-    do {
-      oldcol.col(0) = newcol;
-      for (Eigen::Index j = 0; j < fes.cols(); ++j) {
-        newcol.col(0) = eigenAve(newcol, fes.column(j), weights);
-      }
-      // Rcout << "oldcol" << std::endl << oldcol << std::endl;
-      // Rcout << "newcol" << std::endl << newcol << std::endl;
-      // Rcout << std::sqrt((oldcol - newcol).pow(2).sum()) << std::endl;
-    } while (std::sqrt((oldcol - newcol).pow(2).sum()) >= eps);
-
-    if (i < p) {
-      newX.col(i - start_col) = newcol;
-    } else if (i < p + ny) {
-      newY.col(i - p) = newcol;
-    } else {
-      newZ.col(i - p - ny) = newcol;
-    }
+    Eigen::MatrixXd Z = Rcpp::as<Eigen::Map<Eigen::MatrixXd>>(Zmat);
+    ret["instrument_matrix"] = demeanMat(Z, fes, weights, eps);
   }
 
-  return List::create(
-    _["outcome"]= newY,
-    _["design_matrix"]= newX,
-    _["instrument_matrix"]= newZ
-  );
+  return ret;
 }
 
 // Much of what follows is modified from RcppEigen Vignette by Douglas Bates and Dirk Eddelbuettel
