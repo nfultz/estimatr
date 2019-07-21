@@ -1,167 +1,36 @@
-# library(estimatr)
-# f <- function(w) {
-#   dat <- data.frame(x = rnorm(10), y = rnorm(10))
-#   lm_robust(y ~ x, data = dat, w = w)
-# }
-# f(NULL)
-# f(1:10)
+#' Demean it
+#' @param model_data foo
+#' @export
+#' @examples
+#'
+#' model_data = structure(list(c(`1` = 7, `2` = 2, `3` = 5, `4` = 3, `5` = 0,
+#' `6` = 3, `7` = 2, `8` = 4, `9` = 7, `10` = 2, `11` = 4, `12` = 2,
+#' `13` = 2, `14` = 6, `15` = 0, `16` = 4, `17` = 5, `18` = 7, `19` = 2,
+#' `20` = 4, `21` = 4, `22` = 4, `23` = 4, `24` = 5, `25` = 3, `26` = 4,
+#' `27` = 4, `28` = 9, `29` = 4, `30` = 3, `31` = 3, `32` = 2, `33` = 5,
+#' `34` = 3, `35` = 6, `36` = 1, `37` = 4, `38` = 2, `39` = 9, `40` = 3
+#' ), structure(c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+#' 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+#' 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1,
+#' 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0,
+#' 0), .Dim = c(40L, 2L), .Dimnames = list(c("1", "2", "3", "4",
+#' "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
+#' "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26",
+#' "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37",
+#' "38", "39", "40"), c("(Intercept)", "D")), assign = 0:1), structure(c(`1` = "d",
+#' `2` = "a", `3` = "b", `4` = "a", `5` = "d", `6` = "d", `7` = "b",
+#' `8` = "b", `9` = "d", `10` = "c", `11` = "d", `12` = "c", `13` = "c",
+#' `14` = "a", `15` = "a", `16` = "c", `17` = "d", `18` = "c", `19` = "b",
+#' `20` = "b", `21` = "d", `22` = "a", `23` = "b", `24` = "d", `25` = "c",
+#' `26` = "d", `27` = "d", `28` = "d", `29` = "d", `30` = "c", `31` = "c",
+#' `32` = "b", `33` = "a", `34` = "b", `35` = "c", `36` = "a", `37` = "c",
+#' `38` = "a", `39` = "b", `40` = "c"), .Dim = c(40L, 1L), .Dimnames = list(
+#'     NULL, "G")), structure(0, intercept=1)), .Names = c("outcome", "design_matrix",
+#' "fixed_effects", "terms"))
+#' str(demean_fes(model_data))
 
-
-# Internal method to process data
-#' @importFrom rlang f_rhs
-clean_model_data <- function(data, datargs, estimator = "") {
-
-  # if data exists, evaluate it
-  data <- if (quo_is_missing(data)) NULL else eval_tidy(data)
-
-  if (getOption("estimatr.debug.clean_model_data", FALSE)) browser()
-
-  mfargs <- Filter(Negate(quo_is_missing), datargs)
-
-  m_formula <- eval_tidy(mfargs[["formula"]])
-  m_formula_env <- environment(m_formula)
-
-  args_ignored <- c("fixed_effects", "se_type")
-  # For each ... that would go to model.fram .default, early eval,
-  # save to formula env, and point to it
-  # subset is also non-standard eval
-  to_process <- setdiff(
-    names(mfargs),
-    c(
-      setdiff(names(formals(stats::model.frame.default)), "subset"),
-      args_ignored
-    )
-  )
-
-  for (da in to_process) {
-    name <- sprintf(".__%s%%%d__", da, sample.int(.Machine$integer.max, 1))
-    m_formula_env[[name]] <- eval_tidy(mfargs[[da]], data = data)
-    mfargs[[da]] <- sym(name)
-  }
-
-  if ("fixed_effects" %in% names(mfargs)) {
-    name <- sprintf(".__fixed_effects%%%d__", sample.int(.Machine$integer.max, 1))
-    m_formula_env[[name]] <- sapply(
-      eval_tidy(quo((stats::model.frame.default)(
-        mfargs[["fixed_effects"]],
-        data = data,
-        na.action = NULL
-      ))),
-      FUN = as.factor
-    )
-    mfargs[["fixed_effects"]] <- sym(name)
-  }
-
-  condition_pr <- NULL
-  if ("condition_pr" %in% names(mfargs) &&
-      length(eval(mfargs[["condition_pr"]], m_formula_env)) == 1) {
-    condition_pr <- eval(mfargs[["condition_pr"]], m_formula_env)
-    mfargs[["condition_pr"]] <- NULL
-  }
-
-  mfargs[["formula"]] <- Formula::as.Formula(m_formula)
-
-  # Get model frame
-  mf <- eval_tidy(quo((stats::model.frame)(
-    !!!mfargs,
-    data = data,
-    na.action = na.omit_detailed.data.frame,
-    drop.unused.levels = TRUE
-  )))
-
-  local({
-    na.action <- attr(mf, "na.action")
-    why_omit <- attr(na.action, "why_omit")
-
-    # Warn if missingness in ancillary variables
-    missing_warning <- c(
-      "Some observations have missingness in the %s variable(s) but not in ",
-      "the outcome or covariates. These observations have been dropped."
-    )
-
-    to_check_if_missing <- c(
-      "cluster", "condition_pr", "block", "weights", "fixed_effects"
-    )
-
-    for (x in to_check_if_missing) {
-      if (!is.null(why_omit[[sprintf("(%s)", x)]])) {
-        warning(sprintf(missing_warning, x))
-      }
-    }
-  })
-
-  if (!is.null(attr(terms(mf), "Formula_without_dot"))) {
-    formula <- attr(terms(mf), "Formula_without_dot")
-  } else {
-    formula <- eval_tidy(mfargs[["formula"]]) # unwrap quosure => a formula
-  }
-
-  ret <- list(
-    outcome = model.response(mf, type = "numeric"),
-    design_matrix = model.matrix(terms(formula, rhs = 1), data = mf)
-  )
-
-  if (estimator == "iv") {
-    if (length(formula)[2] != 2) {
-      stop(
-        "Must specify a `formula` with both regressors and instruments. For ",
-        "example, `formula = y ~ x1 + x2 | x1 + z2` where x1 and x2 are the ",
-        "regressors and z1 and z2 are the instruments.\n\nSee ?iv_robust."
-      )
-    }
-    ret[["instrument_matrix"]] <- model.matrix(terms(formula, rhs = 2), data = mf)
-    ret[["terms_regressors"]] <- terms(formula, rhs = 1)
-  } else if (estimator %in% c("ht", "dim")) {
-    ret[["original_treatment"]] <- mf[, colnames(mf) == all.vars(terms(mf)[[3]])[1]]
-  }
-
-  ret[["weights"]] <- model.extract(mf, "weights")
-  if (any(ret[["weights"]] < 0)) {
-    stop("`weights` must not be negative")
-  }
-
-  ret[["cluster"]] <- model.extract(mf, "cluster")
-  if (!(class(ret[["cluster"]]) %in% c("factor", "integer")) &&
-      !is.null(ret[["cluster"]])) {
-    ret[["cluster"]] <- as.factor(ret[["cluster"]])
-  }
-
-  ret[["block"]] <- model.extract(mf, "block")
-
-  ret[["condition_pr"]] <- if (is.numeric(condition_pr))
-    rep(condition_pr, nrow(ret[["design_matrix"]]))
-  else
-    model.extract(mf, "condition_pr")
-
-  ret[["fixed_effects"]] <- model.extract(mf, "fixed_effects")
-  # If there is NA in the blocks and only one block, returns vector not matrix
-  # so coerce to matrix
-  if (is.character(ret[["fixed_effects"]])) {
-    ret[["fixed_effects"]] <- as.matrix(ret[["fixed_effects"]])
-  }
-
-  if (any(ret[["condition_pr"]] <= 0 | ret[["condition_pr"]] > 1)) {
-    stop(
-      "`condition_prs` must be a vector of positive values no greater than 1"
-    )
-  }
-
-  ret[["terms"]] <- attr(mf, "terms")
-  dcs <- attr(ret[["terms"]], "dataClasses")
-  # Clobber auxiliary variables in dataClasses for margins
-  drop_vars <- c("(fixed_effects)", "(condition_pr)", "(block)", "(cluster)")
-  attr(ret[["terms"]], "dataClasses") <- dcs[setdiff(names(dcs), drop_vars)]
-  ret[["xlevels"]] <- .getXlevels(ret[["terms"]], mf)
-  if (is.character(ret[["fixed_effects"]])) {
-    ret[["felevels"]] <- lapply(as.data.frame(ret[["fixed_effects"]]), unique)
-  }
-
-  return(ret)
-}
 
 demean_fes <- function(model_data) {
-  nfaclevels <-
-    apply(model_data[["fixed_effects"]], 2, function(fe) length(unique((fe)))-1)
 
   demeaned <- demeanMat(
     Y = as.matrix(model_data[["outcome"]]),
@@ -177,20 +46,5 @@ demean_fes <- function(model_data) {
     eps = 1e-8
   )
 
-  # save names
-  dimnames(demeaned[["outcome"]]) <- dimnames(model_data[["outcome"]])
-  new_names <- dimnames(model_data[["design_matrix"]])
-  new_names[[2]] <- new_names[[2]][new_names[[2]] != "(Intercept)"]
-  dimnames(demeaned[["design_matrix"]]) <- new_names
-
-  model_data[["outcome"]] <- demeaned[["outcome"]]
-  model_data[["design_matrix"]] <- demeaned[["design_matrix"]]
-  if (is.numeric(model_data[["instrument_matrix"]])) {
-    model_data[["instrument_matrix"]] <- demeaned[["instrument_matrix"]]
-  }
-
-  # model_data[["fixed_effects"]] <- model_data[["fixed_effects"]]
-
-  model_data[["fe_levels"]] <- setNames(nfaclevels, colnames(model_data[["fixed_effects"]]))
-  return(model_data)
+  return(demeaned)
 }

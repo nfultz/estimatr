@@ -8,6 +8,7 @@ Eigen::ArrayXd eigenAve(Eigen::ArrayXd& x,
                          const Rcpp::StringVector& fe,
                          const Eigen::VectorXd& weights) {
 
+  Rcout << "eigen ave" << std::endl;
   int n = fe.size();
 
   // find unique elements
@@ -42,6 +43,7 @@ Eigen::MatrixXd demeanMat(const Eigen::MatrixXd& what,
                const Eigen::VectorXd& weights,
                const double& eps) {
 
+  Rcout << "deman mat:" << std::endl;
   int n = what.rows();
   int p = what.cols();
   Eigen::MatrixXd out(n,p);
@@ -49,11 +51,13 @@ Eigen::MatrixXd demeanMat(const Eigen::MatrixXd& what,
   Eigen::ArrayXd newcol(n);
 
   for (int i=0; i<p; i++) {
+      Rcout << "deman mat_col:" << i << std::endl;
     newcol.col(0) = what.col(i); // I believe this forces a copy
 
     do {
       oldcol.col(0) = newcol;
       for (Eigen::Index j = 0; j < fes.cols(); ++j) {
+          Rcout << "deman mat_inner_inner:" << i << std::endl;
         eigenAve(newcol, fes.column(j), weights);
       }
       // Rcout << "oldcol" << std::endl << oldcol << std::endl;
@@ -64,6 +68,7 @@ Eigen::MatrixXd demeanMat(const Eigen::MatrixXd& what,
     out.col(i) = newcol;
   }
 
+  Rcout << "deman returning:" << std::endl;
   return out;
 }
 
@@ -78,17 +83,21 @@ List demeanMat(const Eigen::MatrixXd& Y,
                const double& eps) {
 
   int start_col = 0 + has_int;
-  // Rcout << start_col << std::endl;
+  Rcout << "ENTER1" << std::endl;
 
   Rcpp::List ret = Rcpp::List::create();
 
+  Rcout << "Y:" << std::endl;
   ret["outcome"] = demeanMat(Y, fes, weights, eps);
 
-  ret["design_matrix"] = demeanMat(X.block(0, start_col, X.rows(), X.cols() - start_col), // if there's an intercept, skip it.
-          fes, weights, eps);
+  Rcout << "X:" << std::endl;
+  ret["design_matrix"] = demeanMat(
+      X.block(0, start_col, X.rows(), X.cols() - start_col), // if there's an intercept, skip it.
+      fes, weights, eps);
 
 
   if (Zmat.isNotNull()) {
+      Rcout << "Z:" << std::endl;
     Eigen::MatrixXd Z = Rcpp::as<Eigen::Map<Eigen::MatrixXd>>(Zmat);
     ret["instrument_matrix"] = demeanMat(Z, fes, weights, eps);
   }
