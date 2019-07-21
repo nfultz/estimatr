@@ -11,15 +11,24 @@ Eigen::ArrayXd eigenAve(Eigen::ArrayXd& x,
   Rcout << "eigen ave" << std::endl;
   int n = fe.size();
 
-  // find unique elements
-  std::unordered_map<Rcpp::String, int> groups;
+  std::unordered_set<Rcpp::String> fe_uniq;
+  Rcout << "eigen ave uniq go" << std::endl;
   for (int i=0; i<n; i++) {
-    if (groups.find(fe(i)) == groups.end()) {
-        groups[fe(i)] = groups.size();
-    }
+      fe_uniq.insert(fe(i));
   }
 
+  // find unique elements
+  std::unordered_map<Rcpp::String, int> groups;
+  Rcout << "eigen ave uniq go" << std::endl;
+  for (auto it = fe_uniq.begin(); it != fe_uniq.end(); ++it) {
+        int q = groups.size();
+        groups[*it] = q;
+        //Rcout << "eigen ave uniq miss" << *it << "->" << q << std::endl;
+  }
+  Rcout << std::endl;
+
   // calculate group sums
+  Rcout << "eigen ave group" << std::endl;
   Eigen::ArrayX2d group_sums(groups.size(), 2);
   group_sums.setZero();
   for (int i=0; i<n; i++) {
@@ -30,11 +39,12 @@ Eigen::ArrayXd eigenAve(Eigen::ArrayXd& x,
   group_sums.col(0) = group_sums.col(0) / group_sums.col(1);
 
   // demean input *in-place*
+  Rcout << "eigen ave demean" << std::endl;
   for (int i=0; i<n; i++) {
     int j = groups[fe(i)];
     x(i) = x(i) - group_sums(j,0);
   }
-
+  Rcout << "eigen ave ret" << std::endl;
   return x;
 }
 
@@ -63,8 +73,10 @@ Eigen::MatrixXd demeanMat(const Eigen::MatrixXd& what,
       // Rcout << "oldcol" << std::endl << oldcol << std::endl;
       // Rcout << "newcol" << std::endl << newcol << std::endl;
       // Rcout << std::sqrt((oldcol - newcol).pow(2).sum()) << std::endl;
+      Rcout << "deman checking conv:" << std::endl;
     } while (std::sqrt((oldcol - newcol).pow(2).sum()) >= eps);
 
+      Rcout << "deman setting col:" << std::endl;
     out.col(i) = newcol;
   }
 
@@ -88,7 +100,8 @@ List demeanMat(const Eigen::MatrixXd& Y,
   Rcpp::List ret = Rcpp::List::create();
 
   Rcout << "Y:" << std::endl;
-  ret["outcome"] = demeanMat(Y, fes, weights, eps);
+  Eigen::MatrixXd foo =  demeanMat(Y, fes, weights, eps);
+  ret["outcome"] = foo;
 
   Rcout << "X:" << std::endl;
   ret["design_matrix"] = demeanMat(
