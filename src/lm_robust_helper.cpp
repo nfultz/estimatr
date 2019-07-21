@@ -4,7 +4,7 @@
 #include <RcppEigen.h>
 using namespace Rcpp;
 
-Eigen::MatrixXd eigenAve(const Eigen::ArrayXd& x,
+Eigen::ArrayXd eigenAve(const Eigen::ArrayXd& x,
                          const Rcpp::StringVector& fe,
                          const Eigen::VectorXd& weights) {
 
@@ -85,7 +85,7 @@ List demeanMat(const Eigen::MatrixXd& Y,
     do {
       oldcol = newcol;
       for (Eigen::Index j = 0; j < fes.cols(); ++j) {
-        newcol = eigenAve(newcol.matrix(), fes.column(j), weights);
+        newcol = eigenAve(newcol, fes.column(j), weights);
       }
       // Rcout << "oldcol" << std::endl << oldcol << std::endl;
       // Rcout << "newcol" << std::endl << newcol << std::endl;
