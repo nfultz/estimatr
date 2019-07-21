@@ -70,22 +70,19 @@ List demeanMat(const Eigen::MatrixXd& Y,
 
   // Iterate over columns of X, starting at 1 if there is an intercept
   // and then do Y
+  Eigen::ArrayXd oldcol(n);
+  Eigen::ArrayXd newcol(n);
   for (Eigen::Index i = start_col; i <= (p + ny + nz - start_col); ++i) {
 
-    Eigen::ArrayXd oldcol(n);
-    Eigen::ArrayXd newcol(n);
     if (i < p) {
-      oldcol = X.col(i).array() - 1.0;
       newcol = X.col(i).array();
     } else if (i < p + ny){
-      oldcol = Y.col(i-p).array() - 1.0;
       newcol = Y.col(i-p).array();
     } else {
-      oldcol = Z.col(i-p-ny + start_col).array() - 1.0;
       newcol = Z.col(i-p-ny + start_col).array();
     }
 
-    while (std::sqrt((oldcol - newcol).pow(2).sum()) >= eps) {
+    do {
       oldcol = newcol;
       for (Eigen::Index j = 0; j < fes.cols(); ++j) {
         newcol = eigenAve(newcol.matrix(), fes.column(j), weights);
@@ -93,7 +90,8 @@ List demeanMat(const Eigen::MatrixXd& Y,
       // Rcout << "oldcol" << std::endl << oldcol << std::endl;
       // Rcout << "newcol" << std::endl << newcol << std::endl;
       // Rcout << std::sqrt((oldcol - newcol).pow(2).sum()) << std::endl;
-    }
+    } while (std::sqrt((oldcol - newcol).pow(2).sum()) >= eps);
+
     if (i < p) {
       newX.col(i - start_col) = newcol;
     } else if (i < p + ny) {
