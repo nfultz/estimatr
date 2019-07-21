@@ -75,17 +75,17 @@ List demeanMat(const Eigen::MatrixXd& Y,
   for (Eigen::Index i = start_col; i <= (p + ny + nz - start_col); ++i) {
 
     if (i < p) {
-      newcol = X.col(i).array();
+      newcol.col(0) = X.col(i);
     } else if (i < p + ny){
-      newcol = Y.col(i-p).array();
+      newcol.col(0) = Y.col(i-p);
     } else {
-      newcol = Z.col(i-p-ny + start_col).array();
+      newcol.col(0) = Z.col(i-p-ny + start_col);
     }
 
     do {
-      oldcol = newcol;
+      oldcol.col(0) = newcol;
       for (Eigen::Index j = 0; j < fes.cols(); ++j) {
-        newcol = eigenAve(newcol, fes.column(j), weights);
+        newcol.col(0) = eigenAve(newcol, fes.column(j), weights);
       }
       // Rcout << "oldcol" << std::endl << oldcol << std::endl;
       // Rcout << "newcol" << std::endl << newcol << std::endl;
