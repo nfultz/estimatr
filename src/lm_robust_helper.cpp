@@ -49,7 +49,7 @@ Eigen::MatrixXd demeanMat(const Eigen::MatrixXd& what,
   Eigen::ArrayXd newcol(n);
 
   for (int i=0; i<p; i++) {
-    newcol.col(0) = what.col(i);
+    newcol.col(0) = what.col(i); // I believe this forces a copy
 
     do {
       oldcol.col(0) = newcol;
