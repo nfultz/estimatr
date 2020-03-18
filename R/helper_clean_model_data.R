@@ -8,7 +8,7 @@
 
 
 # Internal method to process data
-#' @importFrom rlang f_rhs %||%
+#' @importFrom rlang f_rhs
 clean_model_data <- function(data, datargs, estimator = "") {
 
   # if data exists, evaluate it
@@ -20,12 +20,6 @@ clean_model_data <- function(data, datargs, estimator = "") {
 
   m_formula <- eval_tidy(mfargs[["formula"]])
   m_formula_env <- environment(m_formula)
-
-  # From this point on we never use the environment of anything
-  # in mfargs as we always evaluate in `data` explicitly
-  # Therefore we can just change it to a list that can take
-  # expressions without environments attached to them
-  mfargs <- as.list(mfargs)
 
   args_ignored <- c("fixed_effects", "se_type")
   # For each ... that would go to model.fram .default, early eval,
@@ -42,7 +36,7 @@ clean_model_data <- function(data, datargs, estimator = "") {
   for (da in to_process) {
     name <- sprintf(".__%s%%%d__", da, sample.int(.Machine$integer.max, 1))
     m_formula_env[[name]] <- eval_tidy(mfargs[[da]], data = data)
-    mfargs[[da]] <- sym(name)
+    mfargs[[da]] <- rlang::new_quosure(sym(name))
   }
 
   if ("fixed_effects" %in% names(mfargs)) {
@@ -166,33 +160,37 @@ clean_model_data <- function(data, datargs, estimator = "") {
 }
 
 demean_fes <- function(model_data) {
-  fe.ints <- apply(model_data[["fixed_effects"]], 2, function(x) match(x, unique(x)))
+  nfaclevels <-
+    apply(model_data[["fixed_effects"]], 2, function(fe) length(unique((fe)))-1)
 
-  eps <- 1e-8
-  weights <- model_data[["weights"]] %||% rep(1, nrow(model_data[["design_matrix"]]))
-  has_int <- attr(model_data$terms, "intercept")
-
-
-  demeaned <- list()
+  demeaned <- demeanMat(
+    Y = as.matrix(model_data[["outcome"]]),
+    X = model_data[["design_matrix"]],
+    Zmat = model_data[["instrument_matrix"]],
+    fes = model_data[["fixed_effects"]],
+    weights =
+      if (is.numeric(model_data[["weights"]]))
+        model_data[["weights"]]
+      else
+        rep(1, nrow(model_data[["design_matrix"]])),
+    has_int = attr(model_data$terms, "intercept"),
+    eps = 1e-8
+  )
 
   # save names
-  demeaned[["outcome"]] <- demeanMat2(as.matrix(model_data[["outcome"]]), fe.ints, weights, 0, eps)
   dimnames(demeaned[["outcome"]]) <- dimnames(model_data[["outcome"]])
-  model_data[["outcome"]] <- demeaned[["outcome"]]
-
-  demeaned[["design_matrix"]] <- demeanMat2(model_data[["design_matrix"]], fe.ints, weights, has_int, eps)
   new_names <- dimnames(model_data[["design_matrix"]])
   new_names[[2]] <- new_names[[2]][new_names[[2]] != "(Intercept)"]
   dimnames(demeaned[["design_matrix"]]) <- new_names
-  model_data[["design_matrix"]] <- demeaned[["design_matrix"]]
 
+  model_data[["outcome"]] <- demeaned[["outcome"]]
+  model_data[["design_matrix"]] <- demeaned[["design_matrix"]]
   if (is.numeric(model_data[["instrument_matrix"]])) {
-    demeaned[["instrument_matrix"]] <- demeanMat2(model_data[["instrument_matrix"]], fe.ints, weights, has_int, eps)
     model_data[["instrument_matrix"]] <- demeaned[["instrument_matrix"]]
   }
 
+  # model_data[["fixed_effects"]] <- model_data[["fixed_effects"]]
 
-  model_data[["fe_levels"]] <- apply(fe.ints, 2, max) - 1
-
+  model_data[["fe_levels"]] <- setNames(nfaclevels, colnames(model_data[["fixed_effects"]]))
   return(model_data)
 }
